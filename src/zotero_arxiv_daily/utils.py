@@ -109,6 +109,17 @@ def send_email(config:DictConfig, html:str):
     today = datetime.datetime.now().strftime('%Y/%m/%d')
     msg['Subject'] = Header(f'Daily arXiv {today}', 'utf-8').encode()
 
+    def _login(server):
+        if smtp_server.endswith("qq.com") and hasattr(server, "auth") and hasattr(server, "auth_login"):
+            server.ehlo_or_helo_if_needed()
+            auth_methods = getattr(server, "esmtp_features", {}).get("auth", "").split()
+            if "LOGIN" in auth_methods:
+                server.user = sender
+                server.password = password
+                server.auth("LOGIN", server.auth_login, initial_response_ok=True)
+                return
+        server.login(sender, password)
+
     if smtp_port == 465:
         try:
             server = smtplib.SMTP_SSL(smtp_server, smtp_port, timeout=timeout)
@@ -132,6 +143,6 @@ def send_email(config:DictConfig, html:str):
                 logger.debug(f"Failed to use SSL. {e}\nTry to use plain text.")
                 server = smtplib.SMTP(smtp_server, smtp_port, timeout=timeout)
 
-    server.login(sender, password)
+    _login(server)
     server.sendmail(sender, [receiver], msg.as_string())
     server.quit()

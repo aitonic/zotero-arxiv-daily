@@ -189,6 +189,39 @@ def test_send_email_prefers_ssl_for_port_465(config, monkeypatch):
     assert len(sent) == 1
 
 
+def test_send_email_raises_auth_error_instead_of_disconnected(config, monkeypatch):
+    with open_dict(config):
+        config.email.smtp_port = 465
+        config.email.smtp_server = "smtp.qq.com"
+
+    class StubSMTP_SSL:
+        esmtp_features = {"auth": "PLAIN LOGIN"}
+
+        def __init__(self, *args, **kwargs):
+            pass
+
+        def ehlo_or_helo_if_needed(self):
+            pass
+
+        def auth_login(self, challenge=None):
+            return ""
+
+        def auth(self, mechanism, authobject, initial_response_ok=True):
+            assert mechanism == "LOGIN"
+            raise smtplib.SMTPAuthenticationError(535, b"invalid credentials")
+
+        def login(self, user, password):
+            raise smtplib.SMTPServerDisconnected("Connection unexpectedly closed")
+
+        def quit(self):
+            pass
+
+    monkeypatch.setattr(smtplib, "SMTP_SSL", StubSMTP_SSL)
+
+    with pytest.raises(smtplib.SMTPAuthenticationError, match="535"):
+        send_email(config, "<html>auth-error</html>")
+
+
 def test_send_email_falls_back_to_plain(config, monkeypatch):
     sent = []
     call_count = {"smtp": 0}
