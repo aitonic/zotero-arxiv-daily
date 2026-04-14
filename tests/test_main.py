@@ -97,3 +97,13 @@ def test_daily_workflow_exposes_smtp_env():
 
     assert "SMTP_SERVER: ${{ secrets.SMTP_SERVER }}" in workflow
     assert "SMTP_PORT: ${{ secrets.SMTP_PORT }}" in workflow
+
+
+def test_daily_workflow_logs_masked_smtp_diagnostics():
+    workflow = (
+        Path(__file__).resolve().parent.parent / ".github" / "workflows" / "main.yml"
+    ).read_text()
+
+    assert "SMTP diagnostics:" in workflow
+    assert "SENDER_PASSWORD=SET" in workflow
+    assert "masked_sender()" in workflow
